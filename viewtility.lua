@@ -16,7 +16,8 @@
 -- v0.1
 -- todo: add spectral plot
 
-length = 1024/48000
+start = 0
+length = 1/10
 window = 128
 sampL = {}
 sampR = {}
@@ -54,9 +55,9 @@ function reset()
     --circular buffer
     softcut.loop(i,1)
     softcut.fade_time(i,0)
-    softcut.loop_start(i,0)
+    softcut.loop_start(i,start)
     softcut.loop_end(i,length)
-    softcut.position(i,0)
+    softcut.position(i,start)
     softcut.rate(i,1)
     --levels
     softcut.level(i,1.0)
@@ -77,19 +78,18 @@ function draw_liz_background()
   screen.text("L")
   screen.move(128,10)
   screen.text_right("R")
-  screen.move(66,5)
+  screen.move(65,5)
   screen.text("C")
   -- diagonals
   screen.level(1)
   screen.move(64,64)
   screen.line(0,0)
-  screen.stroke()
-  screen.move(64,64)
-  screen.line(128,0)
+  screen.move(63,64)
+  screen.line(127,0)
   screen.stroke()
    -- vertical
-  screen.move(65,64)
-  screen.line(65,0)
+  screen.move(64,64)
+  screen.line(64,0)
   screen.stroke()
   -- bottom line
   screen.level(4)
@@ -115,7 +115,7 @@ function redraw()
     screen.level(15)
     for i=1, window, 1 do
       screen.pixel(
-        util.round(64 + 64 * level * (sampR[i] - sampL[i])),
+        util.round(63 + 64 * level * (sampR[i] - sampL[i])),
         util.round(64 - 64 * level * (sampR[i] + sampL[i])))
     end
   end
@@ -204,10 +204,13 @@ end
 r = metro.init()
 r.time = 1/20 --1/fps
 r.event = function ()
-  for i = 1,2 do softcut.render_buffer(i,0,length,128) end
+  for i = 1,2 do softcut.render_buffer(i,start,length,128) end
   redraw()
   enc_timer = enc_timer - 1
   if enc_timer < -1 then enc_timer = 0 end
+  --attempt to sync buffer to view - might be breaking stuff
+  softcut.position(1,start)
+  softcut.position(2,start)
 end
 
 function enc(n,d)
