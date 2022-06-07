@@ -5,6 +5,7 @@
 -- audio inputs
 --
 -- enc1 to change modes
+-- enc2 to adjust zoom
 -- enc3 to adjust scale
 --
 -- modes:
@@ -16,17 +17,19 @@
 -- v0.1
 -- todo: add spectral plot
 
-start = 0
+start = 2
 length = 1/10
 window = 128
 sampL = {}
 sampR = {}
 height = 16
-level = 1.0
+zoom = 1
+level = 1.5
 level_timer = 20
 mode_timer = 20
+zoom_timer = 20
 enc_timer = 0
-mode = 1
+mode = 2
 
 -- put samples in the arrays
 function copy_samples (ch, in2, in3, samples)
@@ -36,11 +39,18 @@ function copy_samples (ch, in2, in3, samples)
   if ch == 2 then
     sampR = samples
   end
+  softcut.position(ch,0)
+  softcut.voice_sync(1,2,0)
+end
+
+function print_position(i,p)
+  print(i .. ":" .. p)
 end
 
 function init()
   reset()
   softcut.event_render(copy_samples)
+  softcut.event_position(print_position)
   r:start()
 end
 
@@ -54,12 +64,12 @@ function reset()
     softcut.buffer(i,i)
     --circular buffer
     softcut.loop(i,1)
-    softcut.fade_time(i,0)
     softcut.loop_start(i,start)
-    softcut.loop_end(i,length)
-    softcut.position(i,start)
-    softcut.rate(i,1)
+    softcut.loop_end(i,start+length)
+    --softcut.position(i,start)
+    softcut.rate(i,zoom)
     --levels
+    softcut.fade_time(i,0)
     softcut.level(i,1.0)
     softcut.level_input_cut(i,i,1.0)
     softcut.rec_level(i,1.0)
@@ -107,16 +117,26 @@ function redraw()
     screen.text_right("Amp: " .. level)
     level_timer = level_timer - 1
   end
+  --draw zoom display
+  if zoom_timer > 0 then
+    screen.level(8)
+    screen.move(100,60)
+    screen.text_right("Zoom: " .. zoom)
+    zoom_timer = zoom_timer - 1
+  end
   
   --lissajueueu view
   if mode == 1 then
+    window = 256;
     draw_liz_background()
     --draw waveform / pixels
     screen.level(15)
     for i=1, window, 1 do
       screen.pixel(
+        --x
         util.round(63 + 64 * level * (sampR[i] - sampL[i])),
-        util.round(64 - 64 * level * (sampR[i] + sampL[i])))
+        --y
+        math.abs(util.round(64 - 64 * level * (sampR[i] + sampL[i]))))
     end
   end
   
@@ -202,15 +222,14 @@ end
 
 --timing
 r = metro.init()
-r.time = 1/20 --1/fps
+r.time = length --1/fps
 r.event = function ()
-  for i = 1,2 do softcut.render_buffer(i,start,length,128) end
+  for i = 1,2 do 
+    softcut.render_buffer(i,start,length,window)
+  end
   redraw()
   enc_timer = enc_timer - 1
   if enc_timer < -1 then enc_timer = 0 end
-  --attempt to sync buffer to view - might be breaking stuff
-  softcut.position(1,start)
-  softcut.position(2,start)
 end
 
 function enc(n,d)
@@ -218,6 +237,12 @@ function enc(n,d)
     level = level + d/10
     if level < 0.1 then level = 0.1 end
     level_timer = 20
+  end
+  if n==2 then
+    for i=1,2 do zoom = zoom + d/10  end
+    if zoom < 1 then zoom = 1 end
+    for i=1,2 do softcut.rate(i,zoom) end
+    zoom_timer = 20
   end
   if n==1 then
     if enc_timer < 0 then
